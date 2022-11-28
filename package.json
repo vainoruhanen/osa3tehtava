@@ -1,0 +1,29 @@
+{
+  "name": "notebackend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vainoruhanen/osa3tehtava.git"
+  },
+  "author": "Väinö Ruhanen",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vainoruhanen/osa3tehtava/issues"
+  },
+  "homepage": "https://github.com/vainoruhanen/osa3tehtava#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.20"
+  }
+}
