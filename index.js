@@ -1,8 +1,12 @@
+require('dotenv').config()
 const { response } = require('express')
 const express = require('express')
 const app = express()
 const morgan = require('morgan')
 const cors = require('cors')
+const Person = require('./models/person')
+
+
 
 app.use(express.json())
 app.use(cors())
@@ -14,6 +18,8 @@ morgan.token('info', function(req, res) {
 });
 
 app.use(morgan(':method :status :res[content-length] - :response-time ms :info'))
+
+
 
 let persons = [
     {
@@ -44,25 +50,28 @@ app.get('/', (req, res) =>{     //lähettää hello worldin sivun perus osottees
 
 
 app.get('/api/persons', (req, res) =>{      //lähettää json muodossa tiedot persons arraystä
-    res.json(persons)
+    Person.find({}).then(persons =>{        //hakee tiedot henkilöistä mongodb:stä
+        res.json(persons)
+    })
 })
 
-app.get('/api/persons/:id', (req, res) =>{      //Näyttää yksittäisen henkilön tiedot haetulla id:llä
-    const id = Number(req.params.id)
-    const person = persons.find(person => person.id === id)
-   
-    if(person){
-        res.json(person)
-    }else{
-        res.status(404).end()
-    }
+app.get('/api/persons/:id', (req, res, next) =>{      //Näyttää yksittäisen henkilön tiedot haetulla id:llä
+    Person.findById(req.params.id).then(person => {
+        if(person){
+            res.json(person)
+        } else{
+            res.status(404).end()
+        }
+      })
+      .catch(error => next(error))
 })
 
-app.delete('/api/persons/:id', (req, res) =>{
-    const id = Number(req.params.id)
-    persons = persons.filter(person => person.id != id) //päivittää persons arrayn, henkilön poistettua
-
-    res.status(204).end()       //palauttaa statusksen 204 (no content) poiston jälkeen
+app.delete('/api/persons/:id', (req, res, next) =>{
+    Person.findByIdAndRemove(req.params.id)
+    .then(result => {
+      res.status(204).end()
+    })
+    .catch(error => next(error))
 })
 
 
@@ -73,16 +82,25 @@ const generateID = () => {
     return newID
 }
 
+app.put('/api/persons/:id', (req, res, next) =>{
+    const body = req.body
 
-app.post('/api/persons', (req, res) =>{     //huolehtii uuden henkilön lisäämisestä
-    const body = req.body   //post pyynnön mukana lähetetyt tiedot
-    
-    if(!body.name || !body.number){ //jos pyynnöstä puuttoo nimi tai numero palautetaan status 400 bad request, viestillä content missing
-        return res.status(400).json({
-            error: 'content missing'
-        })
+    const person = {
+        name: body.name,
+        number: body.number,
     }
 
+    Person.findByIdAndUpdate(req.params.id, person, {new : true})
+    .then(updatedPerson =>{
+        res.json(updatedPerson)
+    })
+    .catch(error => next(error))
+})
+
+
+app.post('/api/persons', (req, res, next) =>{     //huolehtii uuden henkilön lisäämisestä
+    const body = req.body   //post pyynnön mukana lähetetyt tiedot
+    
     persons.map(person =>{  //jos koitetaan lisätä henkilöä nimellä joka on jo listalla palautetaan status 400 bad request, virhe viestillä name must be unique
         if(person.name === body.name){
             return res.status(400).json({
@@ -92,24 +110,45 @@ app.post('/api/persons', (req, res) =>{     //huolehtii uuden henkilön lisääm
     })
 
 
-    const person = { //luodaan uusi henkilö käyttäen pyynnön mukana annettuja tietoja
-        id: generateID(),
-        name: body.name,
+    const person = new Person({ //luodaan uusi henkilö käyttäen pyynnön mukana annettuja tietoja
+        name:  body.name,
         number: body.number
-    }
+    })
 
-    persons = persons.concat(person)    //lisätään henkilö persons array:in
-    res.json(person) //lähettää json mudossa tiedot henkilöstä
+    person.save()
+    .then(savedPerson=>{
+        res.json(savedPerson)       //lähettää json mudossa tiedot henkilöstä
+    }) 
+    .catch(error => next(error))
 })
 
 
 
 app.get('/info', (req, res) =>{ //info sivu jolla kerrotaan henkilöiden määrä, sekä tämän hetkinen aika
-    
-    const message =`Phonebook has info for ${persons.length} people <br/> ${new Date()}`
+    Person.find({}).then(persons =>{     
+        const result = persons.reduce((acc, person) => acc + 1, 0);
+        console.log(result)
 
-    res.send(message)
+        const message =`Phonebook has info for ${result} people <br/> ${new Date()}`
+
+        res.send(message)
+    })
 })
+
+
+const errorHandler = (error, request, response, next) => {
+    console.error(error.message)
+  
+    if (error.name === 'CastError') {
+      return response.status(400).send({ error: 'malformatted id' })
+    }else if(error.name === 'ValidationError'){
+        return response.status(400).json({error: error.message})
+    }
+  
+    next(error)
+  }
+  
+  app.use(errorHandler)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
